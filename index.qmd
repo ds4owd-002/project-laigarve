@@ -1,0 +1,22 @@
+---
+title: "My project"
+format: html
+editor: visual
+---
+
+## Project description
+
+This project
+
+## Libraries 
+
+```{r}
+library(readxl)
+library(tidyverse)
+```
+
+## Import
+
+```{r}
+read_excel(here::here("/cloud/project/data/raw/Dataset_2017-2021_OSF.xlsx"))
+```
