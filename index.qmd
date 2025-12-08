@@ -6,7 +6,11 @@ editor: visual
 
 ## Project description
 
-This project
+This dataset contains detailed records from a pragmatic trial conducted in Uvira, Democratic Republic of the Congo, between 2017 and 2021. The study evaluated the impact of improved piped water infrastructure on cholera and diarrhoeal disease incidence.
+
+It includes monthly data by cluster (neighbourhoods within Uvira) on suspected and confirmed cholera cases, population size, oral cholera vaccine coverage, and multiple indicators of water service quality such as accessibility, water quantity, service continuity, and affordability.
+
+The goal is to explore how improvements in water supply service quality affect the incidence of suspected and confirmed cholera cases in Uvira. The analysis will assess temporal and spatial relationships and quantify the public health benefits of infrastructure investments in water systems.
 
 ## Libraries 
 
