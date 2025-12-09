@@ -1,26 +1,100 @@
 ---
 title: "My project"
+author: Laia Garcia-Verellen
+date: "`r Sys.Date()`"
 format: html
 editor: visual
+bibliography: my_references.bib
 ---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(
+warning = FALSE, # hide warnings in rendered HTML
+message = FALSE, # hide package messages
+echo = TRUE # show code in rendered HTML
+)
+```
 
 ## Project description
 
-This dataset contains detailed records from a pragmatic trial conducted in Uvira, Democratic Republic of the Congo, between 2017 and 2021. The study evaluated the impact of improved piped water infrastructure on cholera and diarrhoeal disease incidence.
+This dataset contains detailed records from a pragmatic trial conducted in Uvira, Democratic Republic of the Congo, between 2017 and 2021 (@Gallandat2024). The study evaluated the impact of improved piped water infrastructure on cholera and diarrhoeal disease incidence.
 
 It includes monthly data by cluster (neighbourhoods within Uvira) on suspected and confirmed cholera cases, population size, oral cholera vaccine coverage, and multiple indicators of water service quality such as accessibility, water quantity, service continuity, and affordability.
 
 The goal is to explore how improvements in water supply service quality affect the incidence of suspected and confirmed cholera cases in Uvira. The analysis will assess temporal and spatial relationships and quantify the public health benefits of infrastructure investments in water systems.
 
-## Libraries 
+### Data management
+
+To ensure a transparent and reproducible workflow, the analysis follows recommended data-management practices (@wilson2017). First, the raw data are preserved exactly as received and kept in a dedicated directory without modification. All subsequent processing steps are performed on copies of the raw files, ensuring that the original data remain intact and permanently accessible. The raw data files are also stored in more than one location to provide additional security (https://github.com/ds4owd-002/project-laigarve).
+
+Next, the dataset is transformed into a machine-readable, analysis-friendly format. This includes applying clear and consistent variable names, replacing arbitrary missing-value codes with standard NA representations, and restructuring the data into a tidy format in which each column represents a single variable and each row represents a single observation. These operations improve clarity, reduce ambiguity, and facilitate automated processing.
+
+All data-cleaning and transformation steps are executed through scripted procedures rather than manual editing. All the script documents the actions taken, ensuring that the full data-preparation pipeline can be rerun, inspected, or adapted when new data become available. This documentation also supports transparency, reproducibility, and long-term maintainability of the analysis.
+
+### Libraries
 
 ```{r}
-library(readxl)
-library(tidyverse)
+library(readxl) # import Excel file
+library(tidyverse) # data manipulation, exploration and visualization
 ```
 
-## Import
+### Importing the data
+
+Data are imported from the `data/raw` directory and stored as an object named `uvira_raw`...
 
 ```{r}
-read_excel(here::here("/cloud/project/data/raw/Dataset_2017-2021_OSF.xlsx"))
+uvira_raw <- read_excel(here::here("/cloud/project/data/raw/Dataset_2017-2021_OSF.xlsx"), sheet = 2) # use the second sheet
+```
+
+... and quickly checked:
+
+```{r}
+head(uvira_raw) # inspect first rows
+glimpse(uvira_raw) # check column names and types
+```
+
+### Bringing the data ready-to-analysis
+
+The raw surveillance data (`uvira_raw`) are prepared for analysis by standardising variable types and basic structure. Each variable is converted to an appropriate type, column names are cleaned to make them syntactically safe and consistent in R, and records with impossible or incomplete key information are removed. This results in a minimally cleaned dataset that is saved as `uvira_processed` and used as the processed analysis-ready data in subsequent analyses.
+
+```{r}
+uvira_processed <- uvira_raw |>
+  janitor::clean_names() |> # ensure safe, consistent column names
+  mutate(
+    id = as.character(id), # keep id as character (not numeric)
+    date_admit = as.Date(date_admit), # ensure admission date is Date
+    age = as.numeric(age), # age as numeric
+    sex = factor(sex), # sex as factor (F/M)
+    cluster = as.integer(cluster), # cluster as integer ID
+    confirmed = dplyr::case_when(confirmed == "TRUE" ~ 1L, confirmed == "FALSE" ~ 0L, TRUE ~ NA_integer_), # anything unexpected -> NA
+    month = as.integer(month), # month as integer
+    year = as.integer(year), # year as integer
+    trial_time = as.numeric(trial_time),# trial time as numeric
+    ctc = factor(ctc), # ctc as factor
+    outcome = factor(outcome, 
+                     levels = c( "discharged", "left before discharged (did not receive treatment)", 
+                                 "transferred (to another hospital unit)", "death", 
+                                 "death on arrival (prior to receiving treatment)", 
+                                 "NA (not recorded)")), # make outcome a factor with clinically meaningful and explicit levels
+    ) |> 
+  filter( # minimal clean: drop rows missing key info
+    !is.na(cluster),
+    !is.na(year),
+    !is.na(date_admit)
+    )
+
+glimpse(uvira_processed) # quick check of dataset structure and variable types after processing
+```
+
+The treatment outcome variable was converted to a categorical factor with predefined levels corresponding to discharge status, treatment refusal, transfer, and death, ensuring a clinically meaningful and consistent ordering for subsequent summaries and analyses. In addition, the RDT confirmation variable (`confirmed`) was recoded from the original character values (“TRUE”, “FALSE”, and missing) into a binary indicator, where 1 denotes a positive RDT result, 0 denotes a negative RDT result, and NA indicates that the patient was not tested. The patient identifier (`id`) was stored as a character variable, admission date (`date_admit`) was converted from a date-time stamp to a Date object, and variables describing `sex`, `cluster`, calendar time (`month` and `year`), trial time (`trial_time`), and cholera treatment centre (`ctc`) were standardised to appropriate numeric or categorical types. Records with missing cluster, year, or admission date were removed, reducing the dataset from 4,559 to 4,556 observations.
+
+### Exporting the analysis-ready file
+
+The processed clinical surveillance dataset (`uvira_processed`) is then exported as an analysis-ready file to the `data/processed` directory, separate from the original raw Excel workbook.
+
+```{r}
+readr::write_csv(
+  uvira_processed,
+  here::here("/cloud/project/data/processed/Dataset_2017-2021_OSF_processed.xlsx")
+)
 ```
