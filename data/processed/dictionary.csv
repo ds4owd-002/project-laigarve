@@ -1,23 +1,6 @@
-variable_name,description
-id,"Patient ID (format: number ##### or, from September 2021, C-######)"
-date_admit,Date of admission (format: DD/MM/YYYY)
-age,Patient's age (in years; NA: not recorded)
-sex,Patient's sex (M: male; F: female; NA: not recorded)
-cluster,ID of the trial cluster to which the patient was allocated based on their address (number from 1 to 16)
-confirmed,Rapid diagnostic test (RDT) / confirmation status of the patient (FALSE: negative RDT result; TRUE: posititve RDT result; NA: not tested)
-outcome,"Treatment outcome, with the following categories:"
-, - discharged
-, - left before discharged (did not receive treatment) 
-, - transferred (to another hospital unit) 
-, - death
-, - death on arrival (prior to receiving treatment)
-, - NA (not recorded)
-month,Month of admission (number from 1 to 12)
-year,Year of admission (2017 to 2021)
-trial_time,"Whether time of admission is during the trial intervention period (TRUE: from July 2019 until 2021, as household and community taps were installed or rehabilitated; FALSE: from January 2017 until June 2019). "
-ctc,Place of admission
-, - ctc: cholera treatment centre of the General Hospital
-, - ctu: cholera treatment unit of the Kalundu Health Centre (operated since July 2019)
+﻿variable_name,description
+Month,Calendar month of observation (one row per month; date stored as first day of the month)
+All clusters (city-level),"Average proportion (%) of daily hours during which pumps were functioning at the main water treatment and pumping station (city-wide indicator, all clusters combined)"
 ,
 ,
 ,

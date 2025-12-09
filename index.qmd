@@ -2,99 +2,510 @@
 title: "My project"
 author: Laia Garcia-Verellen
 date: "`r Sys.Date()`"
-format: html
+format:
+  html:
+    toc: true       
+    toc-depth: 3
+    code-fold: true     
 editor: visual
 bibliography: my_references.bib
+execute: 
+  warning: false
+  message: false 
+  echo: true
 ---
 
-```{r, include=FALSE}
-knitr::opts_chunk$set(
-warning = FALSE, # hide warnings in rendered HTML
-message = FALSE, # hide package messages
-echo = TRUE # show code in rendered HTML
-)
-```
+# Introduction
 
-## Project description
+This report is the capstone project for the [DS4OWD-002 course](https://ds4owd-002.github.io/website/) and applies the skills learned in data management and visualisation to a real-world cholera surveillance dataset. This project uses clinical surveillance data from a pragmatic trial conducted in Uvira, Democratic Republic of the Congo, between 2017 and 2021 [@Gallandat2024]. The trial evaluated the impact of improved piped water infrastructure on cholera and diarrhoeal disease incidence in an urban, cholera-endemic setting.
 
-This dataset contains detailed records from a pragmatic trial conducted in Uvira, Democratic Republic of the Congo, between 2017 and 2021 (@Gallandat2024). The study evaluated the impact of improved piped water infrastructure on cholera and diarrhoeal disease incidence.
+One of the datasets analysed here contains individual-level records for 4,556 admissions for acute watery diarrhoea at the cholera treatment centre in Uvira. For each admission, key variables include age, sex, date of admission, residential cluster, rapid diagnostic test (RDT) result, treatment outcome, and trial time indicators. In addition, two related datasets extracted from other sheets of the same Excel workbook provide monthly, cluster-level indicators of piped water service quality and a city-wide measure of water service continuity. 
 
-It includes monthly data by cluster (neighbourhoods within Uvira) on suspected and confirmed cholera cases, population size, oral cholera vaccine coverage, and multiple indicators of water service quality such as accessibility, water quantity, service continuity, and affordability.
+The main objective of this analysis is to describe temporal and spatial patterns in suspected and RDT-confirmed cholera cases in Uvira over the period 2017–2021, as well as to explore how these patterns relate to indicators of piped water service quality and continuity. The analysis focuses on monthly trends in suspected admissions and RDT positivity, heterogeneity between residential clusters, and simple visual comparisons with water service quality and continuity indicators, as a first step towards understanding potential impacts of improvements in piped water services on cholera risk.
 
-The goal is to explore how improvements in water supply service quality affect the incidence of suspected and confirmed cholera cases in Uvira. The analysis will assess temporal and spatial relationships and quantify the public health benefits of infrastructure investments in water systems.
+# Methods
 
-### Data management
+## Data preparation
 
-To ensure a transparent and reproducible workflow, the analysis follows recommended data-management practices (@wilson2017). First, the raw data are preserved exactly as received and kept in a dedicated directory without modification. All subsequent processing steps are performed on copies of the raw files, ensuring that the original data remain intact and permanently accessible. The raw data files are also stored in more than one location to provide additional security (https://github.com/ds4owd-002/project-laigarve).
+To ensure a transparent and reproducible workflow, the analysis followed recommended data-management practices ([this course](https://ds4owd-002.github.io/website/), @wilson2017, [R for Data Science](https://r4ds.had.co.nz/index.html)). The raw data were preserved exactly as received and kept in a dedicated directory without modification. All subsequent processing steps were performed on a copy of the raw file, ensuring that the original data remain intact and permanently accessible. The raw data files were also stored in more than one location to provide additional security [GitHub repository](https://github.com/ds4owd-002/project-laigarve).
 
-Next, the dataset is transformed into a machine-readable, analysis-friendly format. This includes applying clear and consistent variable names, replacing arbitrary missing-value codes with standard NA representations, and restructuring the data into a tidy format in which each column represents a single variable and each row represents a single observation. These operations improve clarity, reduce ambiguity, and facilitate automated processing.
+Thus, the data analysed in this report is stored as a xlsx file in the `data/processed` directory. All analyses were conducted in R within Posit Cloud, using the `tidyverse` framework for data manipulation and visualisation.
 
-All data-cleaning and transformation steps are executed through scripted procedures rather than manual editing. All the script documents the actions taken, ensuring that the full data-preparation pipeline can be rerun, inspected, or adapted when new data become available. This documentation also supports transparency, reproducibility, and long-term maintainability of the analysis.
-
-### Libraries
+The analysis was conducted in R using the `readxl`, `janitor`, and `tidyverse` (including `lubridate`, `purrr`, `ggplot2`, `tidyr`, `forcats`...) packages for data import, cleaning, manipulation, and visualisation.
 
 ```{r}
-library(readxl) # import Excel file
-library(tidyverse) # data manipulation, exploration and visualization
+library(readxl)    # import Excel file
+library(janitor)   # clean variable names
+library(tidyverse) # data manipulation, exploration and visualization 
 ```
 
-### Importing the data
-
-Data are imported from the `data/raw` directory and stored as an object named `uvira_raw`...
+Data were imported from the `data/raw` directory and stored as an object named `clinical_raw` (clinical surveillance data), `index_raw` (quality index of the water), and `continuity_raw` (average proportion of daily hours during which pumps were functioning at the water treatment and pumping station).
 
 ```{r}
-uvira_raw <- read_excel(here::here("/cloud/project/data/raw/Dataset_2017-2021_OSF.xlsx"), sheet = 2) # use the second sheet
+clinical_raw <- read_excel(here::here("/cloud/project/data/raw/Dataset_2017-2021_OSF.xlsx"), sheet = 2) # use the second sheet, where clinical surveillance data are stored
+index_raw <- read_excel(here::here("/cloud/project/data/raw/Dataset_2017-2021_OSF.xlsx"), sheet = 4) # use the fourth sheet, where quality water data are stored
+continuity_raw <- read_excel(here::here("/cloud/project/data/raw/Dataset_2017-2021_OSF.xlsx"), sheet = 7) # use the seventh sheet, where average proportion of daily hours during which pumps were functioning at the water treatment and pumping station
 ```
 
-... and quickly checked:
+And each imported object was briefly inspected using to verify the structure and variable types:
 
 ```{r}
-head(uvira_raw) # inspect first rows
-glimpse(uvira_raw) # check column names and types
+datasets_raw <- list( # all datasets stored in a list
+  clinical_raw   = clinical_raw,
+  index_raw   = index_raw,
+  continuity_raw = continuity_raw)
+
+glimpse(datasets_raw) # check column names and types of each dataset
 ```
 
-### Bringing the data ready-to-analysis
+Next, the raw clinical dataset (`clinical_raw)` was transformed into a processed analysis-friendly format. This included applying clear and consistent variable names and replacing arbitrary missing-value codes with standard NA representations. All data-cleaning and transformation steps were executed through scripted procedures (with each line of code accompanied by a brief comment explaining its purpose), documenting the actions taken, and ensuring that the full data-preparation pipeline can be rerun, inspected, or adapted.
 
-The raw surveillance data (`uvira_raw`) are prepared for analysis by standardising variable types and basic structure. Each variable is converted to an appropriate type, column names are cleaned to make them syntactically safe and consistent in R, and records with impossible or incomplete key information are removed. This results in a minimally cleaned dataset that is saved as `uvira_processed` and used as the processed analysis-ready data in subsequent analyses.
+The `clinical_raw` data were first imported from the original Excel workbook stored in the `data/raw` directory and processed to create an analysis-ready dataset. Variable types were standardised (e.g. dates, numeric values, and categorical factors), and records with missing cluster, year, or admission date were removed. This resulted in a minimally cleaned dataset saved as `clinical_processed`, resulting in 4,556 complete observations.
+
+The RDT confirmation variable (`confirmed`) was recoded from the original character values (“TRUE”, “FALSE”, and missing) into a binary indicator (1 = RDT positive, 0 = RDT negative, `NA` = not tested). The treatment outcome variable (`outcome`) was converted to a categorical factor corresponding to discharge status, treatment refusal, transfer, and death.
 
 ```{r}
-uvira_processed <- uvira_raw |>
-  janitor::clean_names() |> # ensure safe, consistent column names
+clinical_processed <- clinical_raw |>
+  janitor::clean_names() |>              # ensure safe, consistent column names, more info here: https://cran.r-project.org/web/packages/janitor/vignettes/janitor.html
   mutate(
-    id = as.character(id), # keep id as character (not numeric)
-    date_admit = as.Date(date_admit), # ensure admission date is Date
-    age = as.numeric(age), # age as numeric
-    sex = factor(sex), # sex as factor (F/M)
-    cluster = as.integer(cluster), # cluster as integer ID
-    confirmed = dplyr::case_when(confirmed == "TRUE" ~ 1L, confirmed == "FALSE" ~ 0L, TRUE ~ NA_integer_), # anything unexpected -> NA
-    month = as.integer(month), # month as integer
-    year = as.integer(year), # year as integer
-    trial_time = as.numeric(trial_time),# trial time as numeric
-    ctc = factor(ctc), # ctc as factor
-    outcome = factor(outcome, 
-                     levels = c( "discharged", "left before discharged (did not receive treatment)", 
-                                 "transferred (to another hospital unit)", "death", 
-                                 "death on arrival (prior to receiving treatment)", 
-                                 "NA (not recorded)")), # make outcome a factor with clinically meaningful and explicit levels
-    ) |> 
-  filter( # minimal clean: drop rows missing key info
+    id = as.character(id),               # keep id as character (not numeric)
+    date_admit = as.Date(date_admit),    # ensure admission date is a Date
+    age = as.numeric(age),               # age as numeric
+    sex = factor(sex),                   # sex as factor (F/M)
+    cluster = as.integer(cluster),       # cluster as integer ID
+    confirmed = dplyr::case_when(confirmed == "TRUE" ~ 1L, 
+                                 confirmed == "FALSE" ~ 0L, 
+                                 TRUE ~ NA_integer_),    # anything unexpected -> NA
+    month = as.integer(month),           # month as integer
+    year = as.integer(year),             # year as integer
+    trial_time = as.numeric(trial_time), # trial time as numeric
+    ctc = factor(ctc),                   # ctc as factor
+    outcome = na_if(outcome, "NA"),      # NA in outcome as a character
+    outcome = factor(outcome),           # outcome as a factor
+    outcome = forcats::fct_recode(       # rename for readable purposes
+      outcome,
+      "Death"                 = "death",
+      "Death on arrival"      = "death_on_arrival",
+      "Discharged"            = "discharged",
+      "Left before discharge" = "left_before_discharged",
+      "Transferred"           = "transferred"
+    ),
+    outcome = forcats::fct_relevel(      # order levels in a meaningful sequence
+      outcome,
+      "Discharged",
+      "Transferred",
+      "Left before discharge",
+      "Death",
+      "Death on arrival")
+    ) |>
+  filter(                                # minimal clean: drop rows missing key info
     !is.na(cluster),
     !is.na(year),
     !is.na(date_admit)
     )
 
-glimpse(uvira_processed) # quick check of dataset structure and variable types after processing
+glimpse(clinical_processed)              # quick check of dataset
 ```
 
-The treatment outcome variable was converted to a categorical factor with predefined levels corresponding to discharge status, treatment refusal, transfer, and death, ensuring a clinically meaningful and consistent ordering for subsequent summaries and analyses. In addition, the RDT confirmation variable (`confirmed`) was recoded from the original character values (“TRUE”, “FALSE”, and missing) into a binary indicator, where 1 denotes a positive RDT result, 0 denotes a negative RDT result, and NA indicates that the patient was not tested. The patient identifier (`id`) was stored as a character variable, admission date (`date_admit`) was converted from a date-time stamp to a Date object, and variables describing `sex`, `cluster`, calendar time (`month` and `year`), trial time (`trial_time`), and cholera treatment centre (`ctc`) were standardised to appropriate numeric or categorical types. Records with missing cluster, year, or admission date were removed, reducing the dataset from 4,559 to 4,556 observations.
-
-### Exporting the analysis-ready file
-
-The processed clinical surveillance dataset (`uvira_processed`) is then exported as an analysis-ready file to the `data/processed` directory, separate from the original raw Excel workbook.
+In parallel, the water service quality index sheet (`index_raw`) was processed to obtain a monthly, cluster-level indicator. Column names were cleaned, the month column was converted to a Date variable, and auxiliary `year` and `month` variables were derived. This resulted in `index_processed`, a processed dataset with one row per month and cluster-level index values expressed on a 0–100 scale.
 
 ```{r}
-readr::write_csv(
-  uvira_processed,
-  here::here("/cloud/project/data/processed/Dataset_2017-2021_OSF_processed.xlsx")
+index_processed <- index_raw |>
+  janitor::clean_names() |>             # digit column names are prefixed with "x" 
+  rename(
+    month_date = month                  # rename month column to month_date
+  ) |>
+  mutate(
+    month_date = as.Date(month_date),   # ensure month_date is a Date
+    year       = year(month_date),      # extract year, more info about handling dates here: https://lubridate.tidyverse.org/index.html
+    month      = month(month_date)      # extract month (1–12)
+  )
+
+glimpse(index_processed)
+
+colSums(is.na(index_processed))         # checking if and where the NA are
+```
+
+The continuity sheet (`continuity_raw`) was processed in a similar way to derive a city-wide water service continuity indicator. Column names were cleaned, the month column was converted to a Date variable, and `year` and `month` variables were added. The continuity variable was explicitly cast to numeric, yielding `continuity_processed`, a monthly time series of the proportion of daily hours during which pumps were functioning at the main water treatment and pumping station.
+
+```{r}
+continuity_processed <- continuity_raw |>
+  janitor::clean_names() |>                     
+  rename(
+    month_date = month,                         
+    continuity = all_clusters_city_level       
+  ) |>
+  mutate(
+    month_date = as.Date(month_date),          
+    continuity = as.numeric(continuity),        # ensure continuity is numeric
+    year       = year(month_date),              
+    month      = month(month_date)              
+  )
+
+glimpse(continuity_processed)     
+
+colSums(is.na(continuity_processed))
+```
+
+Missing values in the water service indices were not removed at the initial data-processing stage for two main reasons: 
+
+* missing entries in the cluster-level quality index and continuity indicators generally reflect genuine gaps in operational data (e.g. months or clusters without recorded measurements). 
+* removing all rows or columns containing `NA` would discard months that are still informative for most clusters, or months with valid clinical data but incomplete water service information. 
+
+Instead, missing values were handled in a context-specific manner at the analysis stage (e.g. restricting joins and figures to observations with non-missing `index_value` or `continuity`), thereby preserving as much information as possible without introducing artificial imputation.
+
+Finallly, all processed datasets (`clinical_processed`, `index_processed`, and `continuity_processed`) were then written to the `data/processed` directory as CSV files to ensure reproducibility and to separate raw from analysis-ready data.
+
+```{r}
+datasets_processed <- list( # List of processed datasets to be saved
+  clinical_processed   = clinical_processed,
+  index_processed      = index_processed,
+  continuity_processed = continuity_processed
+)
+
+purrr::iwalk(               # write each dataset to data/processed as a separate CSV, more info here: https://purrr.tidyverse.org/index.html
+  datasets_processed,
+  ~ readr::write_csv(
+      .x,
+      here::here("data/processed", paste0(.y, ".csv"))
+    )
 )
 ```
+
+## Derived variables and aggregation
+
+To address questions about temporal and spatial patterns, the individual-level line list was aggregated to the cluster–month level. For each combination of year, month, and residential cluster, the following quantities were computed: the number of suspected cholera admissions, the number of patients tested with RDT, the number of RDT-positive cases, and the proportion of positive tests (RDT positivity). This aggregation provided a compact time series at cluster level and facilitates visualization of trends and heterogeneity.
+
+```{r}
+clinical_monthly <- clinical_processed |>
+  group_by(year, month, cluster) |>
+  summarise(
+    n_admissions   = n(),                                       # all suspected cases 
+    n_tested       = sum(!is.na(confirmed)),                    # patients with RDT done
+    n_confirmed    = sum(confirmed == 1, na.rm = TRUE),         # RDT-positive cases
+    rdt_positivity = if_else(n_tested > 0,
+                             n_confirmed / n_tested, NA_real_)  # avoid division by 0
+    ) |>
+  ungroup()
+```
+
+## Summary statistics table
+
+A simple set of summary statistics was calculated to describe overall admissions, testing, and RDT positivity across the study period.
+
+```{r tbl-summary, tab.cap = "Overall summary of suspected admissions, testing, and RDT-confirmed cholera cases (2017–2021)."}
+clinical_summary_table <- clinical_monthly |>
+  summarise(
+    total_admissions   = sum(n_admissions, na.rm = TRUE),     # total suspected admissions
+    total_tested       = sum(n_tested,     na.rm = TRUE),     # total RDT tested
+    total_confirmed    = sum(n_confirmed,  na.rm = TRUE),     # total RDT confirmed
+    overall_positivity = round((total_confirmed / total_tested)*100, 1) # positivity (%)
+  )
+
+clinical_summary_table_display <- clinical_summary_table |>
+  rename(
+    "Total admissions"                = total_admissions, # renaming for readable purposes
+    "Total tested (RDT)"              = total_tested,
+    "Total confirmed (RDT positive)"  = total_confirmed,
+    "Overall RDT positivity (%)"      = overall_positivity
+  )
+
+knitr::kable(
+  clinical_summary_table_display,
+  align   = rep("c", ncol(clinical_summary_table_display))
+  )
+```
+
+## Reshaping the water service quality index to long format
+
+To link the cluster-level water service quality index with the monthly clinical data and facilitate plotting, the processed index dataset was reshaped from wide to long format. In this structure, each row corresponds to a unique combination of month and cluster, with a single column (`index_value`) containing the water service quality index.
+
+```{r}
+index_long <- index_processed |>
+  pivot_longer(
+    cols      = starts_with("x"),        # cluster columns (x1, x2, ...)
+    names_to  = "cluster_raw",           # original cluster column names
+    values_to = "index_value"            # water service quality index (0–100)
+  ) |>
+  mutate(
+    # Extract numeric cluster ID from names like "x1", "x2", ...
+    cluster     = readr::parse_number(cluster_raw),
+    index_value = as.numeric(index_value)
+  )
+
+glimpse(index_long)
+```
+
+# Results
+
+@tbl-summary summarises overall admissions, testing, and RDT-confirmed cholera cases over the study period. Between 2017 and 2021, a total of 4,556 suspected cholera admissions were recorded, of which 3,309 (≈73%) underwent RDT testing. Among those tested, 1,503 were RDT positive, corresponding to an overall RDT positivity of about 45%, indicating that roughly one third of all suspected admissions met the definition of confirmed cholera.
+
+## Temporal patterns in suspected cholera admissions
+
+To describe overall trends in suspected cholera burden, monthly admissions were summed across all clusters. This highlights the timing and magnitude of cholera peaks over the study period.
+
+```{r fig-cases-time, fig.cap = "Monthly suspected cholera admissions in Uvira, 2017–2021."}
+clinical_monthly_overall <- clinical_monthly |>
+  group_by(year, month) |>
+  summarise(
+    n_admissions = sum(n_admissions, na.rm = TRUE)   # total admissions per month
+  ) |>
+  ungroup() |>
+  mutate(
+    date = as.Date(paste(year, month, "01", sep = "-"))  # first day of each month
+  )
+
+ggplot(data = clinical_monthly_overall,
+       mapping = aes(x = date,
+                     y = n_admissions)) +
+  geom_line() +
+  scale_x_date(
+    date_breaks       = "1 year",   # labels: one per year
+    date_labels       = "%Y",
+    date_minor_breaks = "1 month"   # minor grid/ticks: every month
+  ) +
+  labs(
+    x = "Date of admission",
+    y = "Number of suspected cholera admissions"
+  )
+
+```
+
+As shown in @fig-cases-time, suspected cholera admissions vary substantially over time, with distinct peaks and troughs between 2017 and 2021. The series is characterized by several sharp peaks, separated by periods of much lower admission numbers, suggesting strong seasonality or intermittent outbreak dynamics. The marked reduction in suspected cholera admissions during most of 2021 is consistent with several contextual changes reported in Uvira. A mass oral cholera vaccination campaign was implemented in mid and late 2020 with high administrative coverage and moderate-to-high coverage in subsequent household surveys, which is likely to have reduced cholera incidence during the following year. In addition, a second cholera treatment unit opened in 2019, so some patients with acute watery diarrhoea may have sought care outside the facility captured in this line list. Ongoing improvements in piped water supply and a modest increase in the proportion of households using REGIDESO taps may also have contributed to lower transmission, although this analysis is descriptive and cannot establish causality.
+
+## Temporal patterns in RDT positivity
+
+To approximate trends in confirmed cholera, RDT positivity was calculated as the proportion of tested patients with a positive RDT result in each month.
+
+```{r fig-RDT-time, fig.cap = "Monthly cholera RDT positivity in Uvira, 2017–2021."}
+clinical_monthly_overall_pos <- clinical_monthly |>
+  group_by(year, month) |>
+  summarise(
+    n_tested    = sum(n_tested, na.rm = TRUE),
+    n_confirmed = sum(n_confirmed, na.rm = TRUE)
+    ) |>
+  ungroup() |>
+  mutate(
+    date           = as.Date(paste(year, month, "01", sep = "-")),
+    rdt_positivity = if_else(
+      n_tested > 0,
+      n_confirmed / n_tested,
+      NA_real_
+      )
+    )
+
+ggplot(data = clinical_monthly_overall_pos,
+       mapping = aes(x = date,
+                     y = rdt_positivity)) +
+  geom_line() +
+  scale_x_date(
+    date_breaks       = "1 year",   # labels: one per year
+    date_labels       = "%Y",
+    date_minor_breaks = "1 month"   # minor grid/ticks: every month
+  ) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(x = "Date of admission",
+       y = "RDT positivity (%)")
+```
+
+Monthly cholera RDT positivity in Uvira fluctuated markedly over the study period, typically ranging between about 20% and 60%, with only a few months approaching 0% (@fig-RDT-time). This indicates that, in most months, a substantial proportion of tested patients met the definition of confirmed cholera.
+
+## Spatial heterogeneity by cluster
+
+Because the intervention and water distribution network operate at the cluster (neighbourhood) level, it was important to observe how suspected cholera burden varied between clusters.
+
+```{r fig-cluster, fig.cap = "Total suspected cholera admissions by cluster."}
+clinical_cluster_total <- clinical_monthly |>
+  group_by(cluster) |>
+  summarise(
+    n_admissions_total = sum(n_admissions, na.rm = TRUE)
+    ) |>
+  ungroup()
+
+ggplot(data = clinical_cluster_total,
+       mapping = aes(x = factor(cluster),
+                     y = n_admissions_total)) +
+  geom_col() +
+  scale_y_continuous(expand = expansion(mult = c(0, 0.05))) +
+  labs(x = "Cluster",
+       y = "Total suspected cholera admissions (2017–2021)")
+```
+
+@fig-cluster indicates substantial variation in total suspected cholera admissions between clusters. A small number of clusters (9, 11,13, 16) account for a disproportionate share of admissions, suggesting that local environmental or infrastructural conditions may concentrate cholera risk in specific neighbourhoods. On the contrary, clusters 7 and 8 hold the lowest number of cholera admissions.
+
+```{r fig-cluster-time, fig.cap = "Monthly suspected cholera admissions by cluster."}
+clinical_monthly |>
+  mutate(
+    date = as.Date(paste(year, month, "01", sep = "-"))
+    ) |>
+  ggplot(mapping = aes(x = date, y = n_admissions)) +
+  geom_line() +
+  scale_x_date(
+    date_breaks = "1 year",
+    date_labels = "%Y"
+  ) +
+  facet_wrap(~ cluster, scales = "free_y") +
+  labs(x = "Month of admission", 
+       y = "Number of suspected admissions") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) # text readable
+```
+
+Figure @fig-cluster-time shows that temporal patterns differ across clusters, with some neighborhoods experiencing repeated peaks. In particular, a subset of clusters shows sustained or recurrent transmission, suggesting persistent local risk factors. These patterns are most pronounced in clusters 3, 4, 5, 6, 9, 11, 13, and 16 which show repeated high peaks over multiple years, consistent with sustained or recurrent transmission rather than isolated outbreaks. In contrast, clusters 7 and 8 exhibit low and infrequent admissions, suggesting either genuinely lower risk or possible under-ascertainment. The marked heterogeneity between clusters indicates that cholera risk is highly focal within the study area and that targeted interventions in the high-burden neighbourhoods (particularly cluster 16) could yield gains in reducing overall case burden.
+
+## Treatment outcomes
+
+Treatment outcomes were summarised to provide a simple description of clinical severity among admitted patients. As shown in @fig-treatment, most admitted patients were discharged, while a smaller proportion died or were transferred to another hospital unit. These outcome distributions provide additional context for interpreting temporal and spatial patterns in suspected and confirmed cholera cases.
+
+```{r fig-treatment, fig.cap = "Distribution of treatment outcomes among cholera admissions."}
+clinical_outcome_summary <- clinical_processed |>  # summary of outcomes with proportions
+  filter(!is.na(outcome)) |>                       # exclude cases without defined outcome
+  count(outcome) |>
+  mutate(
+    prop       = n / sum(n, na.rm = TRUE),         # compute proportion for each outcome
+    prop_label = scales::percent(prop, accuracy = 1)  # formatted label (e.g. "65%")
+    )
+
+# Manual color palette with clinical meaning
+outcome_cols <- c(
+  "Discharged"             = "#4CAF50",  # green (favorable outcome)
+  "Transferred"            = "#FFC107",  # amber (intermediate/uncertain)
+  "Left before discharge"  = "#FF9800",  # orange (risk)
+  "Death"                  = "#D32F2F",  # red (severe outcome)
+  "Death on arrival"       = "#B71C1C"   # darker red (most severe)
+  )
+
+ggplot(
+  data = clinical_outcome_summary,
+  mapping = aes(
+    x    = outcome,
+    y    = prop,
+    fill = outcome
+    )
+  ) +
+  geom_col() +
+  geom_text(
+    aes(label = prop_label),            # show percentage label above each bar
+    vjust = -0.3,                       # vertical offset above bar
+    size  = 3                           # text size
+    ) +
+  scale_y_continuous(
+    labels = scales::percent_format(accuracy = 1),
+    expand = expansion(mult = c(0, 0.1))  # add headroom for labels above bars
+    ) +
+  scale_fill_manual(
+    values = outcome_cols,
+    name   = "Treatment outcome"
+    ) +
+  labs(
+    x = "Treatment outcome",
+    y = "Proportion of admissions"
+    ) +
+  theme(axis.text.x = element_text(size = 8))
+```
+
+## Cholera admissions in relation to water service quality and continuity
+
+After examining the spatial distribution of suspected cholera admissions by cluster, an exploratory analysis was undertaken to assess whether clusters with lower cholera burden tended to coincide with higher values of the piped water service quality index. The aim was not to establish causality, but to explore whether any clear visual pattern could be observed between monthly admissions and water service quality across neighborhoods.
+
+@fig-index shows the relationship between the monthly water service quality index and suspected cholera admissions across clusters. In most clusters, admissions occur over a relatively narrow range of index values and no clear monotonic association is evident, although some high-burden clusters (4, 5, 6, 14, 16) show higher admissions at lower index values. Other clusters (e.g. 3, 9, 11, 13) continue to experience substantial numbers of admissions even at high index values above 20%, indicating that improvements in this service quality indicator alone are not sufficient to eliminate cholera risk. Overall, this exploratory visual analysis does not support a simple linear or threshold relationship between the index and cholera admissions, and no causal conclusions can be drawn from these descriptive data.
+
+```{r fig-index, fig.cap = "Relationship between water service quality and monthly cholera admissions by cluster"}
+clinical_with_index <- clinical_monthly |>   # joining monthly clinical admissions with the water service quality index
+  left_join(
+    index_long |> 
+      select(year, month, cluster, index_value),
+    by = c("year", "month", "cluster")
+    ) |>
+  filter(
+    !is.na(index_value)                      # NA values are removed 
+    )
+
+ggplot(
+  data = clinical_with_index,
+  mapping = aes(
+    x = index_value,                          # water service quality index 
+    y = n_admissions                          # number of suspected admissions
+    )
+  ) +
+  geom_point(alpha = 0.6) +                   # points with some transparency
+  geom_smooth(
+    method = "loess",
+    se     = FALSE
+    ) +                                       # smooth trend line
+  facet_wrap(~ cluster, scales = "free_y") +  # one panel per cluster
+  labs(
+    x = "Water service quality index (0–100%)",
+    y = "Number of suspected cholera admissions per month"
+    )
+```
+
+To compare monthly suspected cholera admissions across quartiles of the water service quality index, @fig-clinical-with-index shows that median admissions are relatively similar across categories, with substantial overlap between interquartile ranges. This suggests no clear graded decrease in admissions with higher index values. Months classified in the “High” category include both low and high admission counts, indicating that, in these data, higher values of the index are not consistently associated with lower cholera burden. No simple dose–response relationship can be inferred from this exploratory comparison.
+
+```{r fig-clinical-with-index, fig.cap = "Monthly cholera admissions by water service quality category"}
+clinical_with_index_cat <- clinical_with_index |> # Create index categories (quartiles)
+  mutate(
+    index_cat = cut(
+      index_value,
+      breaks = quantile(index_value, probs = c(0, 0.25, 0.5, 0.75, 1), na.rm = TRUE),
+      include.lowest = TRUE,
+      labels = c("Very low", "Low", "Medium", "High")
+      )
+    )
+
+ggplot(
+  data = clinical_with_index_cat,
+  mapping = aes(
+    x = index_cat,
+    y = n_admissions
+    )
+  ) +
+  geom_boxplot() +
+  labs(
+    x = "Water service quality index category",
+    y = "Monthly suspected cholera admissions"
+    )
+```
+
+Lastly, @fig-cont shows the relationship between monthly continuity of piped water service and the total number of suspected cholera admissions. Overall, there is no clear linear association: high admission counts are observed across a wide range of continuity values. The loess curve suggests a modest decline in admissions between roughly 55% and 65% continuity, but admissions remain highly variable at all levels, and several months with relatively high continuity still coincide with substantial cholera burden. These descriptive patterns do not support a simple dose–response relationship between continuity and cholera admissions, and no causal interpretation can be drawn from this exploratory analysis.
+
+```{r fig-cont, fig.cap = "Monthly suspected cholera admissions vs water service continuity"}
+clinical_overall_with_cont <- clinical_monthly_overall |> # joining overall monthly admissions with the continuity indicator
+  left_join(
+    continuity_processed |>
+      select(year, month, continuity),    # join on year and month
+    by = c("year", "month")
+    ) |>
+  filter(
+    !is.na(continuity)                  
+    )
+
+ggplot(
+  data = clinical_overall_with_cont,
+  mapping = aes(
+    x = continuity,
+    y = n_admissions
+    )
+  ) +
+  geom_point() +
+  geom_smooth(
+    method = "loess", # more info here https://r-statistics.co/Loess-Regression-With-R.html
+    se     = FALSE
+    ) +
+  labs(
+    x = "Continuity of water service (% of daily hours with functioning pumps)",
+    y = "Total monthly suspected cholera admissions"
+    )
+```
+
+# Conclusions
+
+* **Burden and positivity.** From 2017–2021, 4,556 suspected cholera admissions were recorded, about three quarters were RDT-tested, and ≈45% of those tested were positive, indicating a substantial confirmed cholera burden.
+
+* **Temporal and spatial variation.** Admissions showed clear peaks and troughs over time and were highly concentrated in a few clusters (especially 9, 11, 13, and 16), while others (7 and 8) had very few cases, consistent with focal transmission.
+
+* **Treatment outcomes.** Most admitted patients were discharged, and deaths or transfers represented a small proportion of recorded outcomes, suggesting substantial morbidity but relatively low recorded in-facility mortality in these data.
+
+* **Water indicators and cholera burden.** Simple visual comparisons did **not** show a clear monotonic or dose–response relationship between piped water service quality/continuity and cholera admissions; high case counts occurred across a wide range of index and continuity values.
+
+* **Interpretation and limits.** This is a purely descriptive, visually based analysis and cannot establish or exclude causal effects of water supply improvements. These findings should therefore be interpreted alongside the original trial results [@Gallandat2024], where formal modelling did identify inverse associations between water service quality/continuity and cholera incidence.
+
