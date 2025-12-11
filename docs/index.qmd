@@ -1,7 +1,9 @@
 ---
-title: "My project"
-author: Laia Garcia-Verellen
-date: "`r Sys.Date()`"
+title: "Analyzing Public Health Surveillance Data: A Case Study of Cholera in Uvira, D.R. Congo"
+author:
+  name: laigarve
+  orcid: 0009-0000-3674-9847
+date: today
 format:
   html:
     toc: true       
@@ -13,6 +15,7 @@ execute:
   warning: false
   message: false 
   echo: true
+abstract: This report analyses cholera surveillance data from Uvira, Democratic Republic of the Congo (2017–2021), collected during a trial evaluating the impact of improved piped water infrastructure. The dataset includes 4,556 suspected cholera admissions, of which 73% were RDT-tested and 45% confirmed positive. Analyses in R consisted of visual and descriptive exploration of temporal and spatial patterns and their variation in relation to piped water service quality and continuity. The findings illustrate clear temporal and spatial patterns in cholera surveillance data and provide a descriptive overview of how these patterns vary in relation to piped water service indicators. These results are exploratory and intended to inform further analysis rather than support causal interpretation.
 ---
 
 # Introduction
@@ -27,11 +30,9 @@ The main objective of this analysis is to describe temporal and spatial patterns
 
 ## Data preparation
 
-To ensure a transparent and reproducible workflow, the analysis followed recommended data-management practices ([this course](https://ds4owd-002.github.io/website/), @wilson2017, [R for Data Science](https://r4ds.had.co.nz/index.html)). The raw data were preserved exactly as received and kept in a dedicated directory without modification. All subsequent processing steps were performed on a copy of the raw file, ensuring that the original data remain intact and permanently accessible. The raw data files were also stored in more than one location to provide additional security [GitHub repository](https://github.com/ds4owd-002/project-laigarve).
+To ensure a transparent and reproducible workflow, the analysis followed recommended data-management practices ([this course](https://ds4owd-002.github.io/website/), @wilson2017, @grolemund2023). The raw data were preserved exactly as received and kept in a dedicated directory without modification. All subsequent processing steps were performed on a copy of the raw file, ensuring that the original data remain intact and permanently accessible. The raw data files were also stored in more than one location to provide additional security [GitHub repository](https://github.com/ds4owd-002/project-laigarve).
 
-Thus, the data analysed in this report is stored as a xlsx file in the `data/processed` directory. All analyses were conducted in R within Posit Cloud, using the `tidyverse` framework for data manipulation and visualisation.
-
-The analysis was conducted in R using the `readxl`, `janitor`, and `tidyverse` (including `lubridate`, `purrr`, `ggplot2`, `tidyr`, `forcats`...) packages for data import, cleaning, manipulation, and visualisation.
+Thus, the data analysed in this report is stored as a xlsx file in the `data/processed` directory. All analyses were conducted in R within Posit Cloud, using the `readxl`, `janitor`, and `tidyverse` (including `lubridate`, `purrr`, `ggplot2`, `tidyr`, `forcats`...) packages for data import, cleaning, manipulation, and visualisation.
 
 ```{r}
 library(readxl)    # import Excel file
@@ -58,9 +59,7 @@ datasets_raw <- list( # all datasets stored in a list
 glimpse(datasets_raw) # check column names and types of each dataset
 ```
 
-Next, the raw clinical dataset (`clinical_raw)` was transformed into a processed analysis-friendly format. This included applying clear and consistent variable names and replacing arbitrary missing-value codes with standard NA representations. All data-cleaning and transformation steps were executed through scripted procedures (with each line of code accompanied by a brief comment explaining its purpose), documenting the actions taken, and ensuring that the full data-preparation pipeline can be rerun, inspected, or adapted.
-
-The `clinical_raw` data were first imported from the original Excel workbook stored in the `data/raw` directory and processed to create an analysis-ready dataset. Variable types were standardised (e.g. dates, numeric values, and categorical factors), and records with missing cluster, year, or admission date were removed. This resulted in a minimally cleaned dataset saved as `clinical_processed`, resulting in 4,556 complete observations.
+The raw clinical dataset (`clinical_raw`) was then transformed into an analysis-ready format. This process involved applying consistent and informative variable names, replacing arbitrary missing-value codes with standard `NA` representations, and standardising variable types (e.g., dates, numeric values, and categorical factors). All cleaning and transformation steps were performed through scripted procedures, each accompanied by concise comments documenting its purpose, ensuring that the full data-preparation pipeline can be rerun, inspected, or adapted. Records with missing cluster, year, or admission date were removed, yielding a minimally cleaned dataset saved as `clinical_processed`, containing 4,556 complete observations.
 
 The RDT confirmation variable (`confirmed`) was recoded from the original character values (“TRUE”, “FALSE”, and missing) into a binary indicator (1 = RDT positive, 0 = RDT negative, `NA` = not tested). The treatment outcome variable (`outcome`) was converted to a categorical factor corresponding to discharge status, treatment refusal, transfer, and death.
 
@@ -122,8 +121,6 @@ index_processed <- index_raw |>
   )
 
 glimpse(index_processed)
-
-colSums(is.na(index_processed))         # checking if and where the NA are
 ```
 
 The continuity sheet (`continuity_raw`) was processed in a similar way to derive a city-wide water service continuity indicator. Column names were cleaned, the month column was converted to a Date variable, and `year` and `month` variables were added. The continuity variable was explicitly cast to numeric, yielding `continuity_processed`, a monthly time series of the proportion of daily hours during which pumps were functioning at the main water treatment and pumping station.
@@ -143,8 +140,6 @@ continuity_processed <- continuity_raw |>
   )
 
 glimpse(continuity_processed)     
-
-colSums(is.na(continuity_processed))
 ```
 
 Missing values in the water service indices were not removed at the initial data-processing stage for two main reasons:
@@ -152,7 +147,13 @@ Missing values in the water service indices were not removed at the initial data
 -   missing entries in the cluster-level quality index and continuity indicators generally reflect genuine gaps in operational data (e.g. months or clusters without recorded measurements).
 -   removing all rows or columns containing `NA` would discard months that are still informative for most clusters, or months with valid clinical data but incomplete water service information.
 
-Instead, missing values were handled in a context-specific manner at the analysis stage (e.g. restricting joins and figures to observations with non-missing `index_value` or `continuity`), thereby preserving as much information as possible without introducing artificial imputation.
+```{r}
+colSums(is.na(index_processed))         # checking if and where the NA are
+colSums(is.na(continuity_processed))
+```
+
+
+Instead, missing values were addressed during analysis on a case-by-case basis, by excluding incomplete observations where necessary, while avoiding unnecessary data loss or imputation.
 
 Finallly, all processed datasets (`clinical_processed`, `index_processed`, and `continuity_processed`) were then written to the `data/processed` directory as CSV files to ensure reproducibility and to separate raw from analysis-ready data.
 
